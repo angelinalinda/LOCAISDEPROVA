@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Painel ENEM – Locais de Prova</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f3f5f8;--surface:#fff;--ink:#1b2432;--muted:#5d6b7e;--line:#e1e6ed;--navy:#10243f;--accent:#1f5fa8;--ok:#1d7a5c;--warn:#b26a00;--head:#eef2f7;--hover:#f6f9fc;--c1:#1f5fa8;--c2:#1d7a5c;--c4:#8aa4c2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0e1622;--surface:#15202f;--ink:#e6ebf2;--muted:#94a3b8;--line:#243246;--navy:#0a1422;--accent:#5b9bd8;--ok:#43b58f;--warn:#e0a040;--head:#1b2a3d;--hover:#1a283a;--c1:#5b9bd8;--c2:#43b58f;--c4:#4a6788}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0e1622;--surface:#15202f;--ink:#e6ebf2;--muted:#94a3b8;--line:#243246;--navy:#0a1422;--accent:#5b9bd8;--ok:#43b58f;--warn:#e0a040;--head:#1b2a3d;--hover:#1a283a;--c1:#5b9bd8;--c2:#43b58f;--c4:#4a6788}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,Roboto,Arial,sans-serif}
+header{background:var(--navy);color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{margin:0;font-size:18px;font-weight:600}
+header p{margin:2px 0 0;font-size:12.5px;color:#aab8cc}
+.btn{background:transparent;color:#fff;border:1px solid #3b5272;border-radius:6px;padding:7px 12px;font:500 13px Inter,sans-serif;cursor:pointer}
+.btn:hover{background:#1c3556}
+main{max-width:1360px;margin:0 auto;padding:24px 28px 40px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.kpi small{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+.kpi b{display:block;font-size:28px;font-weight:700;margin-top:4px}
+.kpi.ok b{color:var(--ok)}.kpi.warn b{color:var(--warn)}
+.charts{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px}
+.card h2{margin:0 0 12px;font-size:14px;font-weight:600}
+.chartbox{position:relative;height:260px}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar input,.toolbar select{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:9px 12px;font:14px Inter,sans-serif}
+.toolbar input{flex:1;min-width:240px}
+.count{margin-left:auto;align-self:center;color:var(--muted);font-size:13px}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:1100px}
+th{background:var(--head);text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0}
+td{padding:6px 10px;border-bottom:1px solid var(--line)}
+tbody tr:hover{background:var(--hover)}
+td.nm{font-weight:500;white-space:nowrap}
+td.mut{color:var(--muted);white-space:nowrap}
+.ed{width:100%;background:transparent;color:var(--ink);border:1px solid transparent;border-radius:5px;padding:6px 7px;font:13px Inter,sans-serif}
+.ed:hover{border-color:var(--line)}
+.ed:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.ed::placeholder{color:var(--muted);opacity:.7}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:500;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);white-space:nowrap}
+.empty{text-align:center;color:var(--muted);padding:28px}
+#sync{font-size:12px;color:#aab8cc;margin-right:12px}
+#sync::before{content:"●";margin-right:6px;color:#e0a040}
+#sync.on::before{color:#43b58f}
+footer{color:var(--muted);font-size:12px;margin-top:14px}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}main{padding:16px}header{padding:16px}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Painel de Locais de Prova do ENEM</h1>
+    <p>Acompanhamento pedagógico · Alocação de alunos por local de aplicação</p>
+  </div>
+  <div><span id="sync">Edições salvas apenas neste navegador</span><button class="btn" id="btnImport">Importar planilha</button><input type="file" id="file" accept=".xlsx,.xls,.csv" hidden></div>
+</header>
+
+<main>
+  <section class="kpis">
+    <div class="card kpi"><small>Total de alunos</small><b id="kTotal">–</b></div>
+    <div class="card kpi ok"><small>Com local definido</small><b id="kAloc">–</b></div>
+    <div class="card kpi warn"><small>Sem local definido</small><b id="kPend">–</b></div>
+    <div class="card kpi"><small>Locais de prova</small><b id="kLocais">–</b></div>
+  </section>
+
+  <section class="charts">
+    <div class="card"><h2 id="barTitle">Alunos por local de prova</h2><div class="chartbox"><canvas id="chBar"></canvas></div></div>
+    <div class="card"><h2>Status geral de alocação</h2><div class="chartbox"><canvas id="chDon"></canvas></div></div>
+  </section>
+
+  <section class="card">
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Buscar por nome, turma ou local de prova…">
+      <select id="selTurma"><option value="">Todas as turmas</option></select>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Nome completo do aluno</th><th>RA</th><th>Itinerário (1ª opção)</th><th>Turma / Série</th>
+          <th>Nº de inscrição</th><th>Local de prova</th><th>Endereço do local</th><th>Sala</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <footer>Nome, RA e itinerário vêm da planilha enviada. A planilha não traz turma, inscrição, local, endereço e sala: preencha direto nas células: as edições são compartilhadas com quem tiver acesso de edição ao painel (ou ficam só neste navegador, conforme o indicador no topo) ou importe uma planilha que tenha essas colunas.</footer>
+  </section>
+</main>
+
+<datalist id="dlLocais"></datalist>
+<script>
+/* Registros da planilha: [nome, turma, inscrição, local, endereço, sala, RA, itinerário] */
+let DATA=[["ALLAN SANTANA DE OLIVEIRA","","","","","","000112472023","EXATAS"],["ALYCIA APARECIDA DE SOUZA NAKAMOTO","","","","","","000111727829","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["ANA BEATRIZ DE CAMPOS CHIQUINELLI","","","","","","000111882243","HUMANAS"],["ANA CLARA CANO MALAQUIAS","","","","","","000112605187","EXATAS"],["ANA LUIZA FIGUEIREDO TEODORO DE CAMARGO","","","","","","000112751526","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["ANDRÉ DOBRIOGLO FONSECA SEMITAN","","","","","","000115550242","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["ANNA BEATRIZ ALVES DO NASCIMENTO","","","","","","000121083725","HUMANAS"],["ARTUR FARIAS QUEIROZ","","","","","","000111818980","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["DAVI OLIVEIRA DA SILVA GALHARDI","","","","","","000111809427","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["EMILLY EMANUELLY BATISTA DA SILVA","","","","","","000114695179","EXATAS"],["GABRIEL ALVES NETO","","","","","","000111729063","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["GABRIELLA CORDEIRO DA SILVA","","","","","","000111809421","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["GEOVANNA SILVA BRITO","","","","","","000114188236","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["GUILHERME ALVES GONCALVES","","","","","","000111881462","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["GUILHERME ROCHA MAYER","","","","","","000113764324","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["GUSTAVO REINOR DOS SANTOS","","","","","","000112618698","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["HADASSA VITORIA DA SILVA CHAVES","","","","","","000126421472","HUMANAS"],["HENDRIX NAKAMOTO VIEIRA","","","","","","000113499783","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["HENRIQUE GABRIEL DE JESUS SILVA","","","","","","000115468352","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["ISABELLY BARBOSA DA SILVA","","","","","","000113286355","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["ISAQUE ZYON NAKAMOTO","","","","","","000111790245","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["JAMILE VITORIA BRAUNA","","","","","","000111791277","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["JOÃO VITOR DALFORNO DANTAS","","","","","","000111798785","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["JULIO OTAVIO PRAXEDES BARBOZA","","","","","","000111321133","HUMANAS"],["KAUA ANDRADE SOARES","","","","","","000112472041","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["KAUÃ GABRIEL ROCHA DA LUZ","","","","","","000111870283","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["KEMILLY VICTORIA BATISTA DOS SANTOS","","","","","","000111725716","Não Selecionado"],["LAYLLA BEATRIZ ALVES DOS SANTOS","","","","","","000112349769","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["LEONARDO MAGANHA BARBOSA","","","","","","000113718068","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["LÍVIA BARIZON TOYAMA","","","","","","000116408876","HUMANAS"],["LUIS OTAVIO FREIRES JARDIM","","","","","","000113289818","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["MANUELA CAVALCANTI RODRIGUES","","","","","","000113806745","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["MANUELLA TELES DOS SANTOS ANTUNES","","","","","","000116384094","HUMANAS"],["MARCELO SUTECAS SANTOS","","","","","","000111729045","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["MARIA CAROLINA NABEIRO CARVALHO","","","","","","000113326241","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["MARIA EDUARDA DE OLIVEIRA ANTUNES","","","","","","000112347170","TECNICO EM ENFERMAGEM"],["MARIA LUIZA BENEDITO DOS REIS","","","","","","000113582277","EXATAS"],["MARIA PAULA GARCIA DE SOUZA","","","","","","000111989062","HUMANAS"],["MARIANA DE CARVALHO LUCAS ROCHA","","","","","","000113614434","EXATAS"],["MARINO BOUZA ALVAREZ NETO","","","","","","000115293828","HUMANAS"],["MATHEUS NUNES FERREIRA","","","","","","000114948797","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["MIGUEL SCAURI ARIÑO","","","","","","000113695356","EXATAS"],["MYRELLA ALVES DA SILVA","","","","","","000111780214","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["NATHALIA DOS SANTOS MICKEVICIUS","","","","","","000113220585","Não Selecionado"],["PAULO HENRIQUE VEGA ARIZA","","","","","","000113284589","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["PEDRO DANIEL MORDACHINI SILVA","","","","","","000113622900","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["PIETRA PAGOTTO VICENTINI","","","","","","000116055090","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["PIETRA RICARDO CHAVES","","","","","","000111707184","HUMANAS"],["RAFAEL CARDOSO TEIXEIRA","","","","","","000120928578","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["RAFAEL FRANCESCO SOARES BOER","","","","","","000115115872","EXATAS"],["RAFAEL ZANON PIMENTA FILHO","","","","","","000113876486","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["RENATO DE MOURA MAGALHAES RODRIGUES","","","","","","000113158223","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["RITA DE CASSIA OLIVEIRA FAUSTINO","","","","","","000114454523","HUMANAS"],["ROGER GUILHERME NABEIRO CARVALHO","","","","","","000113326242","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["SANDY VICTORIA COSTA DA SILVA","","","","","","000114078566","HUMANAS"],["SOFIA CARDO LUNARO","","","","","","000113876541","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["SOFIA SANTOS DE OLIVEIRA","","","","","","000115463179","TECNICO EM ENFERMAGEM"],["SOFIE EDELSUITA SOUZA ARAUJO","","","","","","000115457140","HUMANAS"],["SOPHIA MIRANDA LOPES","","","","","","000116436139","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["VITÓRIA DE ARAUJO MACEDO","","","","","","000111790101","TÉCNICO EM DESENVOLVIMENTO DE SISTEMAS"],["WESLEY PEREIRA ARAUJO DA SILVA","","","","","","000113284598","EXATAS"]];
+
+const $=id=>document.getElementById(id);
+const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const KEY='painel-enem-edicoes';
+let bar,don,REF=null,SHARED=false,PENDING=false,WQ=Promise.resolve();
+const skey=s=>String(s||'').replace(/[^A-Za-z0-9]+/g,'_');
+const key=r=>skey(r[6]||r[0]);
+const F={1:'t',2:'i',3:'l',4:'e',5:'s'};   /* campo editável -> nome no banco */
+
+/* ---- Persistência local (fallback) ---- */
+function applyEdits(st){DATA.forEach(r=>{const e=(st||{})[key(r)]||{};for(const i in F)r[i]=e[F[i]]||''})}
+function loadLocal(){try{applyEdits(JSON.parse(localStorage.getItem(KEY)||'{}').st)}catch(_){}}
+function saveLocal(){try{const st={};DATA.forEach(r=>{const e={};for(const i in F)if(r[i])e[F[i]]=r[i];if(Object.keys(e).length)st[key(r)]=e});localStorage.setItem(KEY,JSON.stringify({st}))}catch(_){}}
+
+/* ---- Edição compartilhada (db): quem tem permissão de edição vê as mesmas informações ---- */
+function setStatus(){const s=$('sync');s.className=SHARED?'on':'';s.textContent=SHARED?'Edições compartilhadas e salvas automaticamente':'Edições salvas apenas neste navegador'}
+function persist(patch){
+  saveLocal();
+  if(!REF||!SHARED)return;
+  WQ=WQ.then(async()=>{try{
+    const s=await REF.get(); if(!s.exists)await REF.set({st:{}});
+    await REF.update(patch);
+  }catch(e){if(e&&e.code==='invalid_argument'){SHARED=false;setStatus()}}});
+}
+function onRemote(d){
+  applyEdits(d.st);
+  if(document.activeElement&&document.activeElement.classList.contains('ed')){PENDING=true;return}   /* não interrompe quem está digitando */
+  renderAll();
+}
+document.addEventListener('focusout',()=>{if(PENDING)setTimeout(()=>{if(!(document.activeElement&&document.activeElement.classList.contains('ed'))){PENDING=false;renderAll()}},50)});
+async function initShared(){
+  try{
+    const db=await claude.use('db'); if(!db)return;
+    const user=await claude.use('user'); const can=user?await user.can('data.write'):null;
+    REF=db.doc('painel/edicoes'); SHARED=can!==false; setStatus();
+    REF.onSnapshot(s=>{if(s.exists)onRemote(s.data())},()=>{SHARED=false;setStatus()});
+  }catch(_){}
+}
+
+/* ---- Filtros ---- */
+function filtered(){
+  const q=norm($('q').value), t=$('selTurma').value;
+  return DATA.map((r,i)=>[r,i]).filter(([r])=>(!t||(t==='__none'?!r[1]:r[1]===t))&&(!q||norm(r[0]+' '+r[1]+' '+r[3]).includes(q)));
+}
+function fillTurmas(){
+  const cur=$('selTurma').value, ts=[...new Set(DATA.map(r=>r[1]).filter(Boolean))].sort();
+  $('selTurma').innerHTML='<option value="">Todas as turmas</option>'+ts.map(t=>`<option>${esc(t)}</option>`).join('')+(DATA.some(r=>!r[1])?'<option value="__none">Sem turma informada</option>':'');
+  if([...$('selTurma').options].some(o=>o.value===cur))$('selTurma').value=cur;
+}
+function fillLocais(){$('dlLocais').innerHTML=[...new Set(DATA.map(r=>r[3]).filter(Boolean))].map(l=>`<option value="${esc(l)}">`).join('')}
+
+/* ---- Renderização ---- */
+const inp=(i,f,v,ph,extra='')=>`<td><input class="ed" data-i="${i}" data-f="${f}" value="${esc(v)}" placeholder="${ph}" ${extra}></td>`;
+function renderTable(){
+  const rows=filtered();
+  $('count').textContent=rows.length+' de '+DATA.length+' alunos';
+  $('rows').innerHTML=rows.length?rows.map(([r,i])=>`<tr><td class="nm">${esc(r[0])}</td><td class="mut">${esc(r[6]||'–')}</td>
+    <td><span class="pill">${esc(r[7]||'–')}</span></td>${inp(i,1,r[1],'Ex.: 3ºA','style="width:90px"')}${inp(i,2,r[2],'Inscrição','style="width:130px"')}
+    ${inp(i,3,r[3],'Informar local','list="dlLocais" style="min-width:210px"')}${inp(i,4,r[4],'Endereço','style="min-width:240px"')}${inp(i,5,r[5],'Sala','style="width:70px"')}</tr>`).join('')
+    :'<tr><td colspan="8" class="empty">Nenhum aluno encontrado.</td></tr>';
+}
+function renderKpis(){
+  const al=DATA.filter(r=>r[3]).length;
+  $('kTotal').textContent=DATA.length;$('kAloc').textContent=al;$('kPend').textContent=DATA.length-al;
+  $('kLocais').textContent=new Set(DATA.map(r=>r[3]).filter(Boolean)).size;
+}
+function renderCharts(){
+  const al=DATA.filter(r=>r[3]).length, byLocal=al>0, cnt={};
+  DATA.forEach(r=>{const k=byLocal?r[3]:r[7];if(k)cnt[k]=(cnt[k]||0)+1});
+  const labels=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]), ink=css('--muted'), line=css('--line');
+  $('barTitle').textContent=byLocal?'Alunos por local de prova':'Alunos por itinerário (1ª opção) – locais de prova ainda não informados';
+  bar&&bar.destroy();don&&don.destroy();
+  bar=new Chart($('chBar'),{type:'bar',data:{labels,datasets:[{data:labels.map(l=>cnt[l]),backgroundColor:css('--c1'),borderRadius:4,maxBarThickness:56}]},
+    options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:ink},grid:{display:false}},y:{beginAtZero:true,ticks:{color:ink,precision:0},grid:{color:line}}}}});
+  don=new Chart($('chDon'),{type:'doughnut',data:{labels:['Com local','Sem local'],datasets:[{data:[al,DATA.length-al],backgroundColor:[css('--c2'),css('--c4')],borderWidth:0}]},
+    options:{maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{color:ink}}}}});
+}
+function renderAll(){fillTurmas();fillLocais();renderKpis();renderCharts();renderTable()}
+
+/* Edição inline: atualiza dados, indicadores e gráficos sem recarregar a tabela (mantém o foco) */
+$('rows').addEventListener('change',e=>{
+  const el=e.target; if(!el.classList.contains('ed'))return;
+  const r=DATA[+el.dataset.i], f=+el.dataset.f; r[f]=el.value.trim();
+  if(f===3&&r[3]&&!r[4]){const o=DATA.find(x=>x[3]===r[3]&&x[4]);if(o){r[4]=o[4];el.closest('tr').querySelector('[data-f="4"]').value=o[4];persist({st:{[key(r)]:{[F[4]]:o[4]}}})}}
+  persist({st:{[key(r)]:{[F[f]]:r[f]}}});
+  fillTurmas();fillLocais();renderKpis();renderCharts();
+});
+
+/* Importação de planilha (.xlsx/.csv) feita inteiramente no navegador */
+const ALIAS={0:['aluno','nome','nome completo','nome completo do aluno'],1:['turma','serie','turma / serie'],2:['inscricao','numero de inscricao'],3:['local de prova','local'],4:['endereco','endereco do local'],5:['sala','numero da sala'],6:['ra'],7:['opcao 1º','itinerario']};
+$('btnImport').onclick=()=>$('file').click();
+$('file').onchange=e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=ev=>{try{
+    const wb=XLSX.read(ev.target.result,{type:'array'});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    const keys=Object.keys(rows[0]||{}), map={};
+    for(const i in ALIAS)map[i]=keys.find(k=>ALIAS[i].includes(norm(k)));
+    if(map[0]===undefined){alert('Não encontrei a coluna de nome do aluno (Aluno/Nome).');return}
+    DATA=rows.map(r=>[0,1,2,3,4,5,6,7].map(i=>map[i]===undefined?'':String(r[map[i]]).trim())).filter(r=>r[0]);
+    saveLocal();renderAll();
+  }catch(_){alert('Não foi possível ler o arquivo.')}};
+  rd.readAsArrayBuffer(f);
+};
+$('q').oninput=renderTable;$('selTurma').onchange=renderTable;
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',renderCharts);
+loadLocal();renderAll();initShared();
+</script>
+</body>
+</html>
